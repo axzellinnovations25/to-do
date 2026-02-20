@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, type Room } from '../lib/supabase';
-import { LogOut, Plus, List, Key, Sun, Moon } from 'lucide-react';
+import { LogOut, Plus, List, Key, Sun, Moon, Menu, X } from 'lucide-react';
 import { TodoList } from './TodoList';
 
 interface MainLayoutProps {
@@ -19,6 +19,9 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Mobile specific state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -92,6 +95,7 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       setShowCreate(false);
       fetchMyRooms(); // Refresh sidebar
       setSelectedRoomId(roomData.id);
+      setMobileMenuOpen(false);
 
     } catch (err: any) {
       setError(err.message || 'Failed to create list.');
@@ -128,6 +132,7 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       setShowJoin(false);
       fetchMyRooms(); // Refresh sidebar
       setSelectedRoomId(roomData.id);
+      setMobileMenuOpen(false);
 
     } catch (err: any) {
       setError(err.message || 'Failed to join list.');
@@ -140,8 +145,22 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
 
   return (
     <div className="layout-container">
+      {/* Mobile Overlay */}
+      <div 
+        className={`mobile-overlay ${mobileMenuOpen ? 'active' : ''}`} 
+        onClick={() => setMobileMenuOpen(false)}
+      />
+
+      {/* Mobile Toggle Button (Visible only on small screens) */}
+      <button 
+        className="mobile-nav-toggle"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      >
+        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <div className="user-profile">
             <div className="avatar">{userEmail.charAt(0).toUpperCase()}</div>
@@ -168,7 +187,10 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
                 <li key={room.id}>
                   <button 
                     className={`nav-item ${selectedRoomId === room.id ? 'active' : ''}`}
-                    onClick={() => setSelectedRoomId(room.id)}
+                    onClick={() => {
+                      setSelectedRoomId(room.id);
+                      setMobileMenuOpen(false); // Close menu on selection in mobile
+                    }}
                   >
                     <List size={16} />
                     <span className="truncate">{room.name}</span>

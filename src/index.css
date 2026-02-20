@@ -863,3 +863,122 @@ body::before {
     border-radius: 12px;
     min-width: 48px;
 }
+
+/* ==========================================================================
+   MOBILE RESPONSIVENESS
+   ========================================================================== */
+
+/* Mobile Sidebar Toggle Button */
+.mobile-nav-toggle {
+    display: none;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 50;
+    background: var(--surface-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+/* Mobile Overlay */
+.mobile-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 15;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.mobile-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .mobile-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        /* Hide by default */
+        height: 100vh;
+        z-index: 20;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .sidebar.mobile-open {
+        left: 0;
+    }
+
+    /* Main content mobile adjustments */
+    .main-content {
+        width: 100vw;
+    }
+
+    .todo-container-full {
+        padding: 1.5rem 1rem;
+    }
+
+    .todo-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-bottom: 1rem;
+    }
+
+    .header-info {
+        width: 100%;
+        margin-right: 3rem;
+        /* Make room for the toggle button */
+    }
+
+    .header-info h2 {
+        font-size: 2rem;
+    }
+
+    .room-badge {
+        margin-top: 0.5rem;
+        align-self: flex-start;
+    }
+
+    /* Task card mobile adjustments */
+    .task-card {
+        padding: 1rem 1.25rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .task-content {
+        margin-right: 0;
+    }
+
+    .task-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .task-actions {
+        justify-content: flex-end;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--panel-border);
+    }
+
+    .edit-mode {
+        width: 100%;
+    }
+}
