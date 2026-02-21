@@ -36,8 +36,12 @@ export const Auth = () => {
         });
         if (error) throw error;
       }
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'Authentication failed.');
+      } else {
+        setError('Authentication failed.');
+      }
     } finally {
       setLoading(false);
     }

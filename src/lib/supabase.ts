@@ -10,6 +10,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 // Database Types
+export type Profile = {
+    id: string;
+    username: string | null;
+    avatar_url: string | null;
+    updated_at: string;
+};
+
 export type Room = {
     id: string;
     name: string;

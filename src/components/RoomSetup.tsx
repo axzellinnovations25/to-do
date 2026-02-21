@@ -31,8 +31,12 @@ export const RoomSetup: React.FC<RoomSetupProps> = ({ onJoin }) => {
       if (insertError) throw insertError;
       
       onJoin(name.trim(), data.id);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create room.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'Failed to create room.');
+      } else {
+        setError('Failed to create room.');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,8 +67,12 @@ export const RoomSetup: React.FC<RoomSetupProps> = ({ onJoin }) => {
       }
 
       onJoin(name.trim(), data.id);
-    } catch (err: any) {
-      setError(err.message || 'Failed to join room.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'Failed to join room.');
+      } else {
+        setError('Failed to join room.');
+      }
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,15 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Drop existing tables
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS profiles;
+
+-- Create profiles table
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username TEXT,
+  avatar_url TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Create rooms table
 CREATE TABLE rooms (
@@ -26,6 +35,15 @@ CREATE TABLE tasks (
 -- Enable Row Level Security (RLS)
 ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Profile Policies
+-- 1. Anyone can view public profiles
+CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
+-- 2. Users can insert their own profile
+CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+-- 3. Users can update own profile
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Room Policies
 -- 1. Anyone authenticated can create a room

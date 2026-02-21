@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { supabase, type Room } from '../lib/supabase';
-import { LogOut, Plus, List, Key, Sun, Moon, Menu, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase, type Room, type Profile } from '../lib/supabase';
+import { LogOut, Plus, List, Key, Sun, Moon, Menu, X, Check, UserPen, Settings } from 'lucide-react';
 import { TodoList } from './TodoList';
+import { EditProfileModal } from './EditProfileModal';
 
 interface MainLayoutProps {
   userId: string;
@@ -20,8 +21,17 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Profile State
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Edit State
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editRoomName, setEditRoomName] = useState('');
+
   // Mobile specific state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -42,16 +52,27 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
     document.documentElement.setAttribute('data-theme', newTheme);
   };
 
-  useEffect(() => {
-    fetchMyRooms();
+  const fetchProfile = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    // Subscribe to new rooms being joined/created (simplistic approach)
-    // Note: Due to RLS and junction tables, full real-time on `views` or 
-    // complex joins requires specialized setup, so we fallback to manual 
-    // fetch after actions or periodic refresh.
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 is "no rows returned" -> normal if user has no profile yet
+        console.error('Error fetching profile:', error.message);
+      }
+      if (data) setProfile(data as Profile);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Failed to load profile:', err.message);
+      }
+    }
   }, [userId]);
 
-  const fetchMyRooms = async () => {
+  const fetchMyRooms = useCallback(async () => {
     // We fetch the rooms where the current user is a member
     const { data, error } = await supabase
       .from('rooms')
@@ -66,7 +87,16 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
         setSelectedRoomId(data[0].id);
       }
     }
-  };
+  }, [selectedRoomId]);
+
+  useEffect(() => {
+    fetchMyRooms();
+    fetchProfile();
+    // Subscribe to new rooms being joined/created (simplistic approach)
+    // Note: Due to RLS and junction tables, full real-time on `views` or 
+    // complex joins requires specialized setup, so we fallback to manual 
+    // fetch after actions or periodic refresh.
+  }, [fetchProfile, fetchMyRooms]);
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,8 +127,12 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       setSelectedRoomId(roomData.id);
       setMobileMenuOpen(false);
 
-    } catch (err: any) {
-      setError(err.message || 'Failed to create list.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'Failed to create list.');
+      } else {
+        setError('Failed to create list.');
+      }
     } finally {
       setLoading(false);
     }
@@ -115,7 +149,7 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       const { data: roomData, error: fetchError } = await supabase
         .from('rooms')
         .select('id')
-        .eq('invite_code', inputValue.trim().toLowerCase())
+        .ilike('invite_code', inputValue.trim())
         .single();
 
       if (fetchError || !roomData) throw new Error('Invalid Invite Code.');
@@ -134,10 +168,57 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       setSelectedRoomId(roomData.id);
       setMobileMenuOpen(false);
 
-    } catch (err: any) {
-      setError(err.message || 'Failed to join list.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'Failed to join list.');
+      } else {
+        setError('Failed to join list.');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateRoom = async (roomId: string, newName?: string) => {
+    const nameToUse = newName?.trim() || editRoomName.trim();
+    if (!nameToUse) return;
+    
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .update({ name: nameToUse })
+        .eq('id', roomId);
+        
+      if (error) throw error;
+      
+      setEditingRoomId(null);
+      fetchMyRooms();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Failed to update room:', err.message);
+      }
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!confirm('Are you sure you want to delete this list? All tasks inside will be lost.')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('rooms')
+        .delete()
+        .eq('id', roomId);
+        
+      if (error) throw error;
+      
+      if (selectedRoomId === roomId) {
+        setSelectedRoomId(null);
+      }
+      fetchMyRooms();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Failed to delete room:', err.message);
+      }
     }
   };
 
@@ -155,6 +236,7 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       <button 
         className="mobile-nav-toggle"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        style={{ display: settingsOpen ? 'none' : undefined }}
       >
         {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -162,16 +244,40 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
       {/* Sidebar */}
       <aside className={`sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
-          <div className="user-profile">
-            <div className="avatar">{userEmail.charAt(0).toUpperCase()}</div>
-            <span className="user-email truncate">{userEmail}</span>
+          <div 
+            className="user-profile group cursor-pointer relative" 
+            onClick={() => setShowProfileModal(true)}
+            title="Edit Profile"
+          >
+            <div 
+              className="avatar bg-cover bg-center overflow-hidden"
+              style={{
+                backgroundImage: profile?.avatar_url ? `url(${profile.avatar_url})` : 'none'
+              }}
+            >
+              {!profile?.avatar_url && (profile?.username ? profile.username.charAt(0).toUpperCase() : userEmail.charAt(0).toUpperCase())}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 justify-center">
+              <span className="user-email truncate leading-tight">
+                {profile?.username || 'No Name Set'}
+              </span>
+            </div>
+            <UserPen size={14} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity absolute right-3" />
           </div>
           <div className="flex w-full gap-2 mt-2">
-            <button onClick={onLogout} className="btn-icon hover-red flex-1" style={{ justifyContent: 'center' }} title="Log Out">
-              <LogOut size={16} />
+            <button 
+              onClick={() => setShowProfileModal(true)} 
+              className="btn-icon hover-green flex-1" 
+              style={{ justifyContent: 'center' }} 
+              title="Profile Settings"
+            >
+              <Settings size={16} />
             </button>
             <button onClick={toggleTheme} className="btn-icon hover-blue flex-1" style={{ justifyContent: 'center' }} title="Toggle Theme">
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button onClick={onLogout} className="btn-icon hover-red flex-1" style={{ justifyContent: 'center' }} title="Log Out">
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -183,20 +289,53 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
             {rooms.length === 0 ? (
               <li className="empty-nav">No lists yet</li>
             ) : (
-              rooms.map((room) => (
-                <li key={room.id}>
-                  <button 
-                    className={`nav-item ${selectedRoomId === room.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedRoomId(room.id);
-                      setMobileMenuOpen(false); // Close menu on selection in mobile
-                    }}
-                  >
-                    <List size={16} />
-                    <span className="truncate">{room.name}</span>
-                  </button>
-                </li>
-              ))
+              rooms.map((room) => {
+                return (
+                  <li key={room.id} className="group relative">
+                    {editingRoomId === room.id ? (
+                      <div className="nav-item active flex items-center p-2">
+                        <input
+                          autoFocus
+                          value={editRoomName}
+                          onChange={(e) => setEditRoomName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateRoom(room.id);
+                            if (e.key === 'Escape') setEditingRoomId(null);
+                          }}
+                          className="bg-transparent text-primary outline-none flex-1 truncate w-full"
+                          style={{ minWidth: 0 }}
+                        />
+                        <button onClick={() => handleUpdateRoom(room.id)} className="btn-icon text-green-500 p-1 ml-1 shrink-0">
+                          <Check size={16} />
+                        </button>
+                        <button onClick={() => setEditingRoomId(null)} className="btn-icon text-red-500 p-1 ml-1 shrink-0">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div 
+                        role="button"
+                        tabIndex={0}
+                        className={`nav-item ${selectedRoomId === room.id ? 'active' : ''} w-full relative overflow-hidden cursor-pointer`}
+                        onClick={() => {
+                          setSelectedRoomId(room.id);
+                          setMobileMenuOpen(false); // Close menu on selection in mobile
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setSelectedRoomId(room.id);
+                            setMobileMenuOpen(false);
+                          }
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', textAlign: 'left' }}
+                      >
+                        <List size={16} className="shrink-0" />
+                        <span className="truncate flex-1 text-left">{room.name}</span>
+                      </div>
+                    )}
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>
@@ -256,10 +395,14 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
         {selectedRoomId && selectedRoom ? (
           <TodoList 
             userId={userId} 
-            userEmail={userEmail} 
             roomId={selectedRoomId} 
             roomName={selectedRoom.name}
             inviteCode={selectedRoom.invite_code}
+            isCreator={selectedRoom.created_by === userId}
+            onRenameList={(newName) => handleUpdateRoom(selectedRoomId, newName)}
+            onDeleteList={() => handleDeleteRoom(selectedRoomId)}
+            onRoomUpdated={fetchMyRooms}
+            onSettingsOpen={(open) => { setSettingsOpen(open); if (open) setMobileMenuOpen(false); }}
           />
         ) : (
            <div className="empty-pane">
@@ -269,6 +412,14 @@ export const MainLayout = ({ userId, userEmail, onLogout }: MainLayoutProps) => 
           </div>
         )}
       </main>
+
+      <EditProfileModal
+        userId={userId}
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        currentProfile={profile}
+        onProfileUpdated={(updated) => setProfile(updated)}
+      />
     </div>
   );
 };
