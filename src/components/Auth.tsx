@@ -30,6 +30,9 @@ export const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: 'https://to-do-axzell.netlify.app/',
+          }
         });
         if (error) throw error;
       }
